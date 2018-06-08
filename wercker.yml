@@ -1,0 +1,41 @@
+box:
+  id: cosyverif/docker-images:luajit
+  cmd: /bin/bash
+build:
+  steps:
+    - script:
+        name: "install"
+        code: |
+          apk add --no-cache --virtual .build-deps \
+              build-base \
+              make \
+              perl \
+              openssl-dev
+          luarocks install rockspec/hashids-develop-0.rockspec
+          luarocks install rockspec/lua-websockets-develop-0.rockspec
+          luarocks make    rockspec/cosy-client-env-master-1.rockspec
+          luarocks make    rockspec/cosy-client-master-1.rockspec
+          apk del .build-deps
+    - script:
+        name: "check"
+        code: |
+          luacheck src/
+    - script:
+        name: "test"
+        code: |
+          busted --output=TAP src/
+  after-steps:
+    - slack-notifier:
+        url: $SLACK_URL
+        channel: notifications
+        username: CosyVerif
+        branch: ${WERCKER_GIT_BRANCH}
+    - script:
+        name: "export to coveralls"
+        code: |
+          luacov-coveralls \
+            --repo-token "${COVERALLS_TOKEN}" \
+            --exclude share --exclude busted --exclude _spec \
+            --include cosy \
+            --root src/ \
+            --service-name "${WERCKER_GIT_BRANCH}"
